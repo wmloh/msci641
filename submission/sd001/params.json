@@ -1,0 +1,58 @@
+{
+    "dataset": {
+        "agree": {
+            "batch_size": 64,
+            "augment_dict": {
+                "-1.0": -0.4,
+                "0.0": 0.2,
+                "1.0": 0.05
+            }
+        },
+        "polar": {
+            "batch_size": 64,
+            "augment_dict": {
+                "0.0": 0.2
+            }
+        }
+    },
+    "architecture": {
+        "agree": {
+            "dropout": 0.5,
+            "num_simblocks": 2
+        },
+        "polar": {
+            "dropout": 0.3
+        }
+    },
+    "model": {
+        "agree": {
+            "epochs": 25,
+            "display": true
+        },
+        "polar": {
+            "epochs": 70,
+            "display": true
+        }
+    },
+    "eval": true,
+    "feature": {
+        "train": {
+            "sd_factor": 0.07,
+            "size": 8,
+            "batch_size": 16
+        },
+        "val": {
+            "sd_factor": 0.07,
+            "size": 8,
+            "batch_size": 16
+        }
+    },
+    "test": {
+        "pred": {
+            "batch_size": 64,
+            "sd_factor": 0.01,
+            "variational_size": 8,
+            "v_batch_size": 16
+        }
+    }
+}
