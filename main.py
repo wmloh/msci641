@@ -27,7 +27,7 @@ TEST_BODIES = 'competition_test_bodies.csv'
 TRUE_TEST = 'competition_test_stances.csv'
 
 if __name__ == '__main__':
-    exp = Experiment('sd001', os.path.join(BASE_DIR, BODIES), os.path.join(BASE_DIR, STANCE),
+    exp = Experiment('sd003', os.path.join(BASE_DIR, BODIES), os.path.join(BASE_DIR, STANCE),
                      os.path.join(BASE_DIR, TEST_BODIES), os.path.join(BASE_DIR, TEST_STANCE),
                      os.path.join(BASE_DIR, TRUE_TEST), resume=False)
     exp.execute({
@@ -59,15 +59,15 @@ if __name__ == '__main__':
         'eval': True,
         'feature': {
             'train': {
-                'sd_factor': 0.07, 'size': 8, 'batch_size': 16
+                'sd_factor': 0.03, 'size': 8, 'batch_size': 16
             },
             'val': {
-                'sd_factor': 0.07, 'size': 8, 'batch_size': 16
+                'sd_factor': 0.03, 'size': 8, 'batch_size': 16
             }
         },
         'test': {
             'pred': {
-                'batch_size': 64, 'sd_factor': 0.01, 'variational_size': 8,
+                'batch_size': 64, 'sd_factor': 0.03, 'variational_size': 8,
                 'v_batch_size': 16
             }
         }
