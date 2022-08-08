@@ -17,6 +17,10 @@ from variational import sample_variational
 from classifier import Classifier
 from inference import TestDataset
 from utils.score import score_submission
+from fnc_kfold import generate_features
+from utils.dataset import DataSet
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Experiment:
@@ -47,6 +51,9 @@ class Experiment:
         self.pmodel = None
         self.clf = Classifier()
 
+        self.default_ds = DataSet(path='data')
+        self.output = None
+
     def execute(self, params):
         try:
             start_time = time.time()
@@ -57,9 +64,9 @@ class Experiment:
 
             print('>> Generating agreeable and polarity dataloaders')
             params_ds_agree = params['dataset']['agree']
-            params_ds_polar = params['dataset']['polar']
+            # params_ds_polar = params['dataset']['polar']
             dl_agree, dl_agree_val, weights_agree = self.ds.generate_agreeable(**params_ds_agree)
-            dl_polar, dl_polar_val, weights_polar = self.ds.generate_polarity(**params_ds_polar)
+            # dl_polar, dl_polar_val, weights_polar = self.ds.generate_polarity(**params_ds_polar)
 
             if self.resume and os.path.isfile(self.path_fn('amodel.pt')):
                 print('>> Loading AModel')
@@ -72,121 +79,63 @@ class Experiment:
                 print('>> Fitting AModel')
                 params_amodel = params['model']['agree']
                 amodel_loss, amodel_loss_val = AModel.fit(self.amodel, dl_agree, dl_agree_val, **params_amodel,
-                                                          save_path=os.path.join(self.base_dir, 'amodel.pt'))
+                                                          save_path=os.path.join(self.base_dir, 'amodel.pt'),
+                                                          loss_args={
+                                                              'weight': torch.from_numpy(weights_agree).to(DEVICE)})
                 plt.savefig(os.path.join(self.base_dir, 'amodel_loss.png'))
                 plt.close()
                 self.update_output('amodel_loss', amodel_loss)
                 self.update_output('amodel_loss_val', amodel_loss_val)
 
-            if (self.resume and not os.path.isfile(self.path_fn('agree_val.png'))) or (
-                    not self.resume and params['eval']):
-                print('>> Getting train agreeable distribution')
-                plt.figure()
-                get_distribution_agree(self.amodel, dl_agree, -1., display=True)
-                get_distribution_agree(self.amodel, dl_agree, 0., display=True)
-                get_distribution_agree(self.amodel, dl_agree, 1., display=True)
-                plt.savefig(os.path.join(self.base_dir, 'agree_train.png'))
-                plt.close()
-                print('>> Getting val agreeable distribution')
-                plt.figure()
-                get_distribution_agree(self.amodel, dl_agree_val, -1., display=True)
-                get_distribution_agree(self.amodel, dl_agree_val, 0., display=True)
-                get_distribution_agree(self.amodel, dl_agree_val, 1., display=True)
-                plt.savefig(os.path.join(self.base_dir, 'agree_val.png'))
-                plt.close()
+            df_train = pd.read_pickle('models/stance_train.pkl')
+            df_val = pd.read_pickle('models/stance_val.pkl')
+            X_base_train, y_base_train = generate_features(self.default_ds.stances, df_train, self.default_ds, 'train')
+            X_base_val, y_base_val = generate_features(self.default_ds.stances, df_val, self.default_ds, 'val')
 
-            if self.resume and os.path.isfile(self.path_fn('pmodel.pt')):
-                print('>> Loading PModel')
-                self.pmodel = torch.load(self.path_fn('pmodel.pt'))
-            else:
-                print('>> Constructing PModel')
-                params_arch_pmodel = params['architecture']['polar']
-                self.pmodel = PModel(**params_arch_pmodel)
-
-                print('>> Fitting PModel')
-                params_pmodel = params['model']['polar']
-                pmodel_loss, pmodel_loss_val = PModel.fit(self.pmodel, dl_polar, dl_polar_val, **params_pmodel,
-                                                          save_path=os.path.join(self.base_dir, 'pmodel.pt'))
-                plt.savefig(os.path.join(self.base_dir, 'pmodel_loss.png'))
-                plt.close()
-                self.update_output('pmodel_loss', pmodel_loss)
-                self.update_output('pmodel_loss_val', pmodel_loss_val)
-
-            if (self.resume and not os.path.isfile(self.path_fn('polar_val.png'))) or (
-                    not self.resume and params['eval']):
-                print('>> Getting train polarity distribution')
-                plt.figure()
-                get_distribution_polar(self.pmodel, dl_polar, 0., display=True)
-                get_distribution_polar(self.pmodel, dl_polar, 1., display=True)
-                plt.savefig(os.path.join(self.base_dir, 'polar_train.png'))
-                plt.close()
-                print('>> Getting val polarity distribution')
-                plt.figure()
-                get_distribution_polar(self.pmodel, dl_polar_val, 0., display=True)
-                get_distribution_polar(self.pmodel, dl_polar_val, 1., display=True)
-                plt.savefig(os.path.join(self.base_dir, 'polar_val.png'))
-                plt.close()
-
-            if self.resume and os.path.isfile(self.path_fn('features_y_train.npy')):
-                print('>> Loading train sample variational')
-                features = np.load(self.path_fn('features_X_train.npy'))
-                labels = np.load(self.path_fn('features_y_train.npy'))
-            else:
-                print('>> Generating train sample variational')
-                params_feature_train = params['feature']['train']
-                features, labels = sample_variational(self.amodel, self.pmodel, self.ds.stance_train,
-                                                      self.ds.headline, self.ds.body, **params_feature_train,
-                                                      save_path=os.path.join(self.base_dir, 'features_{}_{}.npy'),
-                                                      save_path_type='train')
-
-            if self.resume and os.path.isfile(self.path_fn('features_y_val.npy')):
-                print('>> Loading val sample variational')
-                features_val = np.load(self.path_fn('features_X_val.npy'))
-                labels_val = np.load(self.path_fn('features_y_val.npy'))
-            else:
-                print('>> Generating val sample variational')
-                params_feature_val = params['feature']['val']
-                features_val, labels_val = sample_variational(self.amodel, self.pmodel, self.ds.stance_val,
-                                                              self.ds.headline, self.ds.body, **params_feature_val,
-                                                              save_path=os.path.join(self.base_dir,
-                                                                                     'features_{}_{}.npy'),
-                                                              save_path_type='val', save_sd_vec=False,
-                                                              load_sd_vec=os.path.join(self.base_dir,
-                                                                                       'features_sd_vec.npy'))
+            X_train, y_train = AModel.combine_features(dl_agree, self.amodel, X_base_train, y_base_train)
+            X_val, y_val = AModel.combine_features(dl_agree_val, self.amodel, X_base_val, y_base_val)
 
             if not self.resume or not os.path.isfile(self.path_fn('clf.pkl')):
                 print('>> Fitting XGBoost classifier')
-                self.clf.load_datasets(features, labels, features_val, labels_val)
+                self.clf.load_datasets(X_train, y_train, X_val, y_val)
                 evals_result = self.clf.fit()
                 self.clf.save(os.path.join(self.base_dir, 'clf.pkl'))
                 self.update_output('evals_result', evals_result)
+                feature_importance = self.clf.clf.get_score(importance_type='gain')
+                self.update_output('feature_importance', feature_importance)
             else:
                 self.clf.load(self.path_fn('clf.pkl'))
 
             print('>> Predicting test dataset and saving')
+            X_base_test, _ = generate_features(self.default_ds.stances, None, self.default_ds,
+                                               'competition', test=True)
+
             params_test = params['test']['pred']
             pred = self.test_ds.predict(self.amodel, self.pmodel, self.clf,
-                                        os.path.join(self.base_dir, 'features_sd_vec.npy'),
+                                        X_base_test,
                                         **params_test)
             self.update_output('pred', pred)
             self.test_ds.submit(self.base_dir)
 
-            score, _ = score_submission(labels, self.clf.predict(features))
-            score_val, _ = score_submission(labels_val, self.clf.predict(features_val))
-            score_test, _ = score_submission([STANCE_TO_LABEL[x] for x in self.true_test_label],
-                                             [STANCE_TO_LABEL[x] for x in pred])
-            self.update_output('score', score)
-            self.update_output('score_val', score_val)
-            self.update_output('score_test', score_test)
+            score_test, cm_test = score_submission([STANCE_TO_LABEL[x] for x in self.true_test_label],
+                                                   [STANCE_TO_LABEL[x] for x in pred])
 
-            print(f'>> Training score = {score} | val score = {score_val} | test score = {score_test}')
+            self.update_output('score_test', score_test)
+            self.update_output('cm_test', cm_test)
+
+            print(f'>> Test score = {score_test}')
+            # print(f'>> Training score = {score} | val score = {score_val} | test score = {score_test}')
 
             with open(os.path.join(self.base_dir, f'score_{round(score_test)}.json'), 'w') as f:
-                all_scores = {'score': score, 'score_val': score_val, 'score_test': score_test}
+                all_scores = {'score_test': score_test}
                 json.dump(all_scores, f, sort_keys=False, indent=4)
 
             end_time = time.time()
             print(f'>> Execution took {round((end_time - start_time) / 60, 2)} minutes')
+
+            with open(self.path_fn('output.pkl'), 'rb') as f:
+                self.output = pickle.load(f)
+
             print('-' * 40)
 
         except ImportError as e:  # TODO: temp!

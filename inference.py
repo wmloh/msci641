@@ -10,6 +10,8 @@ from transformers import AlbertTokenizer, AlbertModel
 from dataset import STANCE_TO_LABEL, LABEL_TO_STANCE
 from variational import sample_variational
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class TestDataset:
     def __init__(self, test_body_fp, test_csv_fp,
@@ -42,6 +44,7 @@ class TestDataset:
 
         self.id_mapping = None
         self.last_pred = None
+        self.last_features = None
 
         self._vectorize_bodies()
         self._headline_id()
@@ -118,19 +121,28 @@ class TestDataset:
         dataset = FeatureDataset(self.test_csv, self.body, self.headline)
         return torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
-    def predict(self, amodel, pmodel, clf, load_sd_vec, batch_size=64,
+    def predict(self, amodel, pmodel, clf, X_base, batch_size=64,
                 sd_factor=0.07, variational_size=8, v_batch_size=16):
         dl = self.generate_features(batch_size=batch_size)
 
-        features, _ = sample_variational(amodel, pmodel, self.test_csv,
-                                         self.headline, self.body,
-                                         sd_factor=sd_factor, size=variational_size,
-                                         batch_size=v_batch_size, save_sd_vec=False,
-                                         load_sd_vec=load_sd_vec)
+        amodel.to(DEVICE)
+        pred = list()
+        with torch.inference_mode():
+            for headline, body in dl:
+                headline = headline.float().to(DEVICE)
+                body = body.float().to(DEVICE)
+
+                pred += amodel.predict_proba(headline, body).cpu().tolist()
+
+        pred = np.asarray(pred)
+        features = np.hstack((pred, X_base))
+
+        amodel.cpu()
 
         pred = clf.predict(features)
         pred = np.array([LABEL_TO_STANCE[x] for x in pred])
         self.last_pred = pred
+        self.last_features = features
 
         return pred
 

@@ -80,7 +80,7 @@ class FNCDataset:
         if verbose:
             print(f'Agreeableness label distribution:\n{labels}\n{frequency}')
 
-        weights = np.zeros_like(dataset.label)
+        weights = np.zeros_like(dataset.label, dtype=np.float32)
         for label, freq in zip(labels, frequency):
             if label in augment_dict:
                 weights[dataset.label == label] = (1. + augment_dict[label]) / freq
@@ -91,8 +91,7 @@ class FNCDataset:
         class_weights = 1. / frequency
         class_weights = class_weights / class_weights.sum()
 
-        sampler = torch.utils.data.WeightedRandomSampler(weights=weights, num_samples=len(weights))
-        return torch.utils.data.DataLoader(dataset, sampler=sampler, batch_size=batch_size), \
+        return torch.utils.data.DataLoader(dataset, batch_size=batch_size), \
                torch.utils.data.DataLoader(dataset_val, batch_size=batch_size_val), \
                class_weights.astype(np.float32)
 
@@ -242,7 +241,7 @@ class AgreeDataset(torch.utils.data.Dataset):
 
         self.headline_id = df['Headline ID'].values
         self.body_id = df['Mapped Body ID'].values
-        self.label = df['Agreeableness'].values
+        self.label = df['Stance'].values
 
     def __len__(self):
         return len(self.label)

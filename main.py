@@ -27,50 +27,32 @@ TEST_BODIES = 'competition_test_bodies.csv'
 TRUE_TEST = 'competition_test_stances.csv'
 
 if __name__ == '__main__':
-    exp = Experiment('sd003', os.path.join(BASE_DIR, BODIES), os.path.join(BASE_DIR, STANCE),
+    exp = Experiment('combine_simblock2', os.path.join(BASE_DIR, BODIES), os.path.join(BASE_DIR, STANCE),
                      os.path.join(BASE_DIR, TEST_BODIES), os.path.join(BASE_DIR, TEST_STANCE),
-                     os.path.join(BASE_DIR, TRUE_TEST), resume=False)
+                     os.path.join(BASE_DIR, TRUE_TEST), resume=True)
     exp.execute({
         'dataset': {
             'agree': {
                 'batch_size': 64, 'augment_dict': {-1.: -0.4, 0.: 0.2, 1.: 0.05}
             },
-            'polar': {
-                'batch_size': 64, 'augment_dict': {0.: 0.2}
-            }
         },
         'architecture': {
             'agree': {
-                'dropout': 0.5,
-                'num_simblocks': 2
+                'dropout': 0.1,
+                'num_simblocks': 2,
+                'embedding_size': 16,
             },
-            'polar': {
-                'dropout': 0.3
-            }
         },
         'model': {
             'agree': {
                 'epochs': 25, 'display': True
             },
-            'polar': {
-                'epochs': 70, 'display': True
-            }
-        },
-        'eval': True,
-        'feature': {
-            'train': {
-                'sd_factor': 0.03, 'size': 8, 'batch_size': 16
-            },
-            'val': {
-                'sd_factor': 0.03, 'size': 8, 'batch_size': 16
-            }
         },
         'test': {
             'pred': {
-                'batch_size': 64, 'sd_factor': 0.03, 'variational_size': 8,
-                'v_batch_size': 16
+                'batch_size': 64,
             }
         }
     })
-    del exp
-    torch.cuda.empty_cache()
+    # del exp
+    # torch.cuda.empty_cache()

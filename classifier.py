@@ -56,7 +56,9 @@ class Classifier:
         evals_result = dict()
         self.clf = xgb.train(params={**self.default_params, **params},
                              dtrain=self.train_dataset,
-                             evals=[(self.val_dataset, 'val'), (self.train_dataset, 'train')],
+                             num_boost_round=40,
+                             evals=[(self.train_dataset, 'train'), (self.val_dataset, 'val')],
+                             early_stopping_rounds=5,
                              evals_result=evals_result, verbose_eval=False)
 
         # features, labels = self.train_dataset
